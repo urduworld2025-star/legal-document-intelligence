@@ -16,3 +16,16 @@ class ParsedDocument(BaseModel):
     pages: list[ParsedPage]
     full_text: str
     parsed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ClauseMatch(BaseModel):
+    category: str
+    text: str
+    confidence: float
+    char_start: int | None
+    char_end: int | None
+
+
+class ClauseExtractionResult(BaseModel):
+    document: ParsedDocument
+    clauses: list[ClauseMatch]

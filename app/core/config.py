@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = 25
     allowed_extensions: set[str] = {".pdf", ".docx"}
+    clause_model_dir: str = "models/clause-extraction-baseline"
 
 
 settings = Settings()

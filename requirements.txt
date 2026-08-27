@@ -10,3 +10,4 @@ httpx
 reportlab
 bcrypt
 PyJWT
+a2wsgi

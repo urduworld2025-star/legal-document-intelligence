@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -42,6 +43,53 @@ QUESTIONS: dict[str, str] = {
     ),
 }
 
+# The null-vs-span decision is `best_margin > threshold` (default 0.0 = trust the model's
+# own calibration). scripts/eval_models.py's step-9 QA pass found Uncapped Liability and
+# Non-Compete have strong no-answer accuracy (~100%) but weak has-answer recall (20-30%) -
+# i.e. the model is too conservative and defaults to "no clause found" on real positives far
+# too often for these two categories specifically. Lowering their threshold (accepting a
+# span even when it scores somewhat below the null answer) trades some precision for a lot
+# of recall - tuned empirically via `python -m scripts.eval_models --calibrate` (results in
+# docs/threshold-calibration-report.md), not guessed:
+#   - Uncapped Liability -8.0: recall 27%->73% with EM/F1 *improving* (0.60/0.62->0.63/0.74)
+#     and no-answer accuracy staying at 1.00 - a clean win, no real tradeoff at this point.
+#   - Non-Compete -6.0: recall 29%->64%, EM 0.62->0.69, F1 0.63->0.73, no-answer accuracy
+#     dips slightly 1.00->0.93 (a real but small precision cost, worth it for the recall gain).
+# Governing Law and Termination For Convenience are not in this dict (threshold stays 0.0,
+# unchanged) since their recall was already good.
+NULL_MARGIN_THRESHOLD: dict[str, float] = {
+    "Uncapped Liability": -8.0,
+    "Non-Compete": -6.0,
+}
+
+# Heuristic, not a model - flags when a matched span is immediately preceded by negation
+# language (e.g. "Neither Party may terminate ... for convenience") so a reviewer knows to
+# double-check the clause isn't the inverse of what the category name suggests. This catches
+# a real failure mode found during step-9 QA (see docs/model-eval-report.md): the model can
+# match on surface phrasing alone without registering the negation. Imperfect by design -
+# a false negative here just means no warning shown (same as today); a false positive just
+# means an extra "double-check this" note on a clause that was fine. Never used to suppress
+# a match outright, since suppressing on a heuristic could hide a genuine clause.
+_NEGATION_CUES = re.compile(
+    r"\b(shall not|may not|will not|is not permitted|are not permitted|"
+    r"not (?:be )?(?:permitted|entitled|allowed) to|prohibited from|"
+    r"no party (?:shall|may|will)|neither party (?:shall|may|will))\b",
+    re.IGNORECASE,
+)
+_NEGATION_LOOKBACK_CHARS = 120
+
+
+def _looks_negated(context: str, char_start: int | None, char_end: int | None = None) -> bool:
+    """Checks both the text immediately before the span (negation governing a span that
+    starts after it, e.g. "...shall not [terminate...]") and the start of the span itself
+    (negation the model swept into its own answer, e.g. "[Neither Party may terminate...]"
+    - the actual shape of the real false positive this heuristic was added for)."""
+    if char_start is None:
+        return False
+    window_start = max(0, char_start - _NEGATION_LOOKBACK_CHARS)
+    span_head_end = char_start + 40 if char_end is None else min(char_end, char_start + 40)
+    return bool(_NEGATION_CUES.search(context[window_start:span_head_end]))
+
 
 class ModelNotFoundError(RuntimeError):
     pass
@@ -84,9 +132,12 @@ def _best_span_in_window(start_logits: torch.Tensor, end_logits: torch.Tensor, c
     return ctx_start + best_start_rel, ctx_start + best_end_rel, best_score
 
 
-def _predict_answer(question: str, context: str, tokenizer, model) -> ClauseMatch | None:
-    """Run sliding-window QA inference and return the best answer span, or None if the
-    model is more confident there's no answer (SQuAD 2.0-style null-vs-span comparison)."""
+def _score_span(question: str, context: str, tokenizer, model) -> tuple[float, int | None, int | None, float]:
+    """Run sliding-window QA inference and return the best (margin, char_start, char_end,
+    confidence) found across all windows, regardless of whether that margin clears any
+    null-vs-span threshold - that decision is the caller's (`_predict_answer`), kept
+    separate so a threshold can be swept post-hoc without re-running inference (see
+    `scripts/eval_models.py --calibrate`)."""
     inputs = tokenizer(
         question,
         context,
@@ -130,18 +181,30 @@ def _predict_answer(question: str, context: str, tokenizer, model) -> ClauseMatc
             best_char_start = offsets[start_idx][0].item()
             best_char_end = offsets[end_idx][1].item()
 
-    if best_margin is None or best_margin <= 0:
-        return None
+    if best_margin is None:
+        return float("-inf"), None, None, 0.0
 
     confidence = torch.sigmoid(torch.tensor(best_margin)).item()
-    answer_text = context[best_char_start:best_char_end]
+    return best_margin, best_char_start, best_char_end, confidence
+
+
+def _predict_answer(
+    question: str, context: str, tokenizer, model, *, margin_threshold: float = 0.0
+) -> ClauseMatch | None:
+    """Score `question` against `context` and return the best answer span, or None if it
+    doesn't clear `margin_threshold` above the model's own null-answer score (SQuAD
+    2.0-style null-vs-span comparison; see `NULL_MARGIN_THRESHOLD` for why this is
+    per-category rather than a single global 0.0)."""
+    margin, char_start, char_end, confidence = _score_span(question, context, tokenizer, model)
+    if char_start is None or margin <= margin_threshold:
+        return None
 
     return ClauseMatch(
         category="",
-        text=answer_text,
+        text=context[char_start:char_end],
         confidence=confidence,
-        char_start=best_char_start,
-        char_end=best_char_end,
+        char_start=char_start,
+        char_end=char_end,
     )
 
 
@@ -152,9 +215,11 @@ def extract_clauses(text: str, model_dir: str = "models/clause-extraction-baseli
 
     matches = []
     for category, question in QUESTIONS.items():
-        match = _predict_answer(question, text, tokenizer, model)
+        threshold = NULL_MARGIN_THRESHOLD.get(category, 0.0)
+        match = _predict_answer(question, text, tokenizer, model, margin_threshold=threshold)
         if match is not None:
             match.category = category
+            match.possible_negation = _looks_negated(text, match.char_start, match.char_end)
             matches.append(match)
 
     return matches

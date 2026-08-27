@@ -5,6 +5,7 @@ import pytest
 from legalintel.extraction.clause_extractor import (
     QUESTIONS,
     ModelNotFoundError,
+    _looks_like_hub_repo_id,
     _looks_negated,
     extract_clauses,
 )
@@ -16,6 +17,32 @@ SHORT_CONTEXT = (
     "Neither party shall be liable for any indirect damages under any circumstances. "
     "Employee agrees not to compete with the Company for a period of 12 months."
 )
+
+
+def test_looks_like_hub_repo_id_accepts_namespace_slash_name() -> None:
+    assert _looks_like_hub_repo_id("yourname/clause-extraction-baseline") is True
+
+
+def test_looks_like_hub_repo_id_rejects_windows_local_paths() -> None:
+    assert _looks_like_hub_repo_id(r"C:\Users\pcs\models\clause-extraction-baseline") is False
+    assert _looks_like_hub_repo_id("models/clause-extraction-baseline") is True  # unix-style relative path
+
+
+def test_missing_model_dir_with_windows_path_fails_fast_without_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A Windows absolute path that doesn't exist must never fall through to a Hub lookup -
+    # regression test for the fix that made the local-vs-Hub Path.exists() check offline-safe.
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError("from_pretrained should not be called for a local-looking path")
+
+    import legalintel.extraction.clause_extractor as ce
+
+    monkeypatch.setattr(ce.AutoTokenizer, "from_pretrained", _fail_if_called)
+    monkeypatch.setattr(ce.AutoModelForQuestionAnswering, "from_pretrained", _fail_if_called)
+
+    with pytest.raises(ModelNotFoundError):
+        extract_clauses(SHORT_CONTEXT, model_dir=str(tmp_path / "does-not-exist"))
 
 
 def test_missing_model_dir_raises_clear_error(tmp_path: Path) -> None:

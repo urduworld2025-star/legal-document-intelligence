@@ -111,7 +111,12 @@ pytest tests/ingestion/test_pdf_parser.py::test_parse_pdf_extracts_text  # singl
 There is no configured lint/format command yet.
 
 ```
-python -m scripts.eval_models   # build-order step 9: model accuracy QA (see below)
+python -m scripts.eval_models              # build-order step 9: model accuracy QA (see below)
+python -m scripts.upload_models_to_hub     # build-order step 10: push trained checkpoints to
+                                            # Hugging Face Hub for deployment (see README's
+                                            # Deployment section) - render.yaml's
+                                            # CLAUSE_MODEL_DIR/DOCUMENT_CLASSIFICATION_MODEL_DIR
+                                            # point at the repo ids it creates
 ```
 
 The clause-extraction model itself is trained in
@@ -251,7 +256,13 @@ importable core library the API calls into. `pyproject.toml` puts both
   shape found during step-9 QA where the model matches on surface phrasing
   without registering the negation. It only adds a reviewer-facing warning,
   never suppresses a match, since suppressing on a heuristic could hide a
-  genuine clause.
+  genuine clause. `_load_model` checks for a local folder first (unchanged
+  dev behavior/error message); if that's not there and the string looks
+  like a Hugging Face Hub repo id (`_looks_like_hub_repo_id` — deliberately
+  excludes Windows paths so a missing local folder still fails fast offline
+  in tests, rather than attempting a real Hub network call), it falls
+  through to `from_pretrained` fetching from the Hub — see "Deployment" in
+  README for why (the 250MB+ checkpoint can't be committed to git).
 - `src/legalintel/risk/flagging.py` — pure rule-based Python (no model), run
   after extraction in `app/api/routes/documents.py`. A static
   `SEVERITY_BY_CATEGORY` dict assigns each clause category a fixed
@@ -266,6 +277,8 @@ importable core library the API calls into. `pyproject.toml` puts both
   `POST /documents/classify`. Returns the full softmax probability
   distribution, not just the top label, for human-in-the-loop transparency.
   The "Other" class is a placeholder proxy (news-article text) — see README.
+  `_load_model` has the same local-folder-then-Hub-repo-id fallback as
+  `clause_extractor.py`, for the same reason.
 - `src/legalintel/storage.py` — the single source of schema truth for every
   SQLite table in the app (`users`, `matters` — including its
   `created_by REFERENCES users(id)` column — `matter_documents`,

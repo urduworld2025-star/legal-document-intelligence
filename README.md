@@ -265,19 +265,72 @@ Open http://localhost:5173. It expects the backend running at
 http://127.0.0.1:8000 by default; override with `VITE_API_BASE_URL` (see
 `frontend/.env.example`) if needed.
 
-Routes: `/login` (sign in), `/` (create/browse matters — every route below
-requires an active session and redirects to `/login` otherwise),
-`/matters/:matterId` (a matter's review page — upload/analyze into it,
-browse persisted results with reviewer bylines, track dockets, download a
-PDF report, delete the matter if you're an attorney), `/quick-analyze` (the
-original one-off flow — analyze a document without saving it anywhere),
-`/admin` (attorney-only — create users, view the audit log).
+Routes: `/` (public landing page), `/login` (sign in — every route below
+requires an active session and redirects here otherwise), `/dashboard`
+(create/browse matters), `/matters/:matterId` (a matter's review page —
+upload/analyze into it, browse persisted results with reviewer bylines,
+track dockets, download a PDF report, delete the matter if you're an
+attorney), `/quick-analyze` (the original one-off flow — analyze a document
+without saving it anywhere), `/admin` (attorney-only — create users, view
+the audit log).
 
 ## Run tests
 
 ```
 pytest
 ```
+
+## Deployment
+
+Build-order step 10. Targets [Render](https://render.com) via the
+`render.yaml` blueprint at the repo root, which provisions two services: the
+FastAPI backend (with a persistent disk for the SQLite file) and the React
+frontend as a static site. The same general approach (a Python web service +
+a persistent disk + a static site) works on Railway/Fly.io too, just without
+the one-click blueprint.
+
+**The trained model checkpoints (~510MB combined) can't be committed to
+git**, so they're loaded from your own Hugging Face Hub account in
+production instead of a local folder — `clause_extractor._load_model` and
+`document_classifier._load_model` both check for a local folder first
+(unchanged local-dev behavior) and, if it's not there, try loading the same
+string as a Hub repo id.
+
+```
+huggingface-cli login   # paste a token from huggingface.co/settings/tokens (write access)
+python -m scripts.upload_models_to_hub --username yourname
+```
+
+This prints the two repo ids to set as `CLAUSE_MODEL_DIR` and
+`DOCUMENT_CLASSIFICATION_MODEL_DIR` in the deployment environment.
+
+**Steps:**
+1. Run the upload script above and note the two repo ids.
+2. In Render: New → Blueprint → point it at this repo. Review the two
+   services it proposes before creating them.
+3. The backend defaults to Render's free plan (512MB RAM) — not enough to
+   hold two transformer models + PyTorch at once. After the first deploy,
+   upgrade the backend service's plan to one with at least ~2GB RAM via its
+   Settings tab.
+4. Fill in the env vars `render.yaml` marks `sync: false` (they're
+   deliberately not in the file — secrets and deployment-specific values):
+   `JWT_SECRET_KEY`, `COURTLISTENER_API_TOKEN`, `CLAUSE_MODEL_DIR`,
+   `DOCUMENT_CLASSIFICATION_MODEL_DIR` on the backend; `VITE_API_BASE_URL`
+   on the frontend (set once the backend's URL is known); `CORS_ALLOW_ORIGINS`
+   on the backend as a JSON list once the frontend's URL is known, e.g.
+   `["https://legalintel-frontend.onrender.com"]`.
+5. Bootstrap the first attorney account against the deployed backend —
+   Render's dashboard has a "Shell" tab for the web service:
+   `python -m scripts.create_admin --email you@firm.com --name "..."`.
+6. Smoke-test the deployed app end-to-end (see "Deployment procedure" in
+   `docs/Legal-Document-Intelligence-Technical-Documentation.pdf` for the
+   full checklist).
+
+See that same PDF for the recommended architecture and a cost estimate
+(~$22-68/month depending on tier) — written for a raw-VPS deployment, so
+treat the Render/PaaS cost as directionally similar rather than identical,
+since the RAM this app needs (for two loaded transformer models) is the
+main cost driver either way, not the platform choice.
 
 ## Notes
 

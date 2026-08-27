@@ -1,0 +1,51 @@
+:root {
+  --bg: #0f1115;
+  --surface: #1a1d24;
+  --surface-hover: #20242c;
+  --border: rgba(255, 255, 255, 0.08);
+
+  --text: #f0f1f4;
+  --text-muted: #9aa0ab;
+
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-bg: rgba(99, 102, 241, 0.14);
+
+  --gold: #d4af6a;
+  --gold-bg: rgba(212, 175, 106, 0.14);
+
+  --danger-bg: rgba(239, 68, 68, 0.14);
+  --danger-border: rgba(239, 68, 68, 0.35);
+  --danger-text: #f87171;
+
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 14px 40px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}

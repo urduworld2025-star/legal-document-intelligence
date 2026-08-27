@@ -1,0 +1,44 @@
+.appShell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.app {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.resultGrid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 1rem;
+}

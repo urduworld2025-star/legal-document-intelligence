@@ -1,0 +1,75 @@
+.wrapper {
+  height: 100%;
+  overflow-y: auto;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.wrapper h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.predicted {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.label {
+  width: 4.5rem;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.barTrack {
+  flex: 1;
+  height: 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
+  background-blend-mode: overlay;
+  transition: width 0.3s ease;
+}
+
+.pct {
+  width: 2.5rem;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.notice {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}

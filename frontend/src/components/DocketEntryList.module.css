@@ -1,0 +1,44 @@
+.empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.item {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.itemHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.2rem;
+}
+
+.entryNumber {
+  font-weight: 600;
+  color: var(--accent-hover);
+}
+
+.date {
+  color: var(--text-muted);
+}
+
+.description {
+  margin: 0;
+  color: var(--text-muted);
+}

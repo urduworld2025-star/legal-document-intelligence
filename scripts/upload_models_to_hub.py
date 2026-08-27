@@ -5,12 +5,16 @@ and render.yaml's CLAUSE_MODEL_DIR / DOCUMENT_CLASSIFICATION_MODEL_DIR env vars.
 
 One-time setup:
     pip install huggingface_hub  (already installed as a transformers dependency)
-    huggingface-cli login        (paste a token from https://huggingface.co/settings/tokens
-                                   with "write" access)
+    hf auth login                (paste a token from https://huggingface.co/settings/tokens
+                                   with "write" access - older huggingface_hub versions use
+                                   `huggingface-cli login` instead)
 
 Usage:
     python -m scripts.upload_models_to_hub --username yourname
     python -m scripts.upload_models_to_hub --username yourname --private
+
+If you make the repos private, the deployed server also needs an HF_TOKEN
+env var (a "read" token is enough) to fetch them - see render.yaml.
 """
 
 import argparse

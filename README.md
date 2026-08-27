@@ -297,12 +297,17 @@ production instead of a local folder — `clause_extractor._load_model` and
 string as a Hub repo id.
 
 ```
-huggingface-cli login   # paste a token from huggingface.co/settings/tokens (write access)
+hf auth login   # paste a token from huggingface.co/settings/tokens (write access) -
+                 # older huggingface_hub versions use `huggingface-cli login` instead
 python -m scripts.upload_models_to_hub --username yourname
+python -m scripts.upload_models_to_hub --username yourname --private  # keep them private
 ```
 
 This prints the two repo ids to set as `CLAUSE_MODEL_DIR` and
-`DOCUMENT_CLASSIFICATION_MODEL_DIR` in the deployment environment.
+`DOCUMENT_CLASSIFICATION_MODEL_DIR` in the deployment environment. If you
+used `--private`, the deployed backend also needs an `HF_TOKEN` env var (a
+"read" token is enough) to fetch them - `render.yaml` already has a slot for
+it, `sync: false`.
 
 **Steps:**
 1. Run the upload script above and note the two repo ids.
@@ -315,9 +320,10 @@ This prints the two repo ids to set as `CLAUSE_MODEL_DIR` and
 4. Fill in the env vars `render.yaml` marks `sync: false` (they're
    deliberately not in the file — secrets and deployment-specific values):
    `JWT_SECRET_KEY`, `COURTLISTENER_API_TOKEN`, `CLAUSE_MODEL_DIR`,
-   `DOCUMENT_CLASSIFICATION_MODEL_DIR` on the backend; `VITE_API_BASE_URL`
-   on the frontend (set once the backend's URL is known); `CORS_ALLOW_ORIGINS`
-   on the backend as a JSON list once the frontend's URL is known, e.g.
+   `DOCUMENT_CLASSIFICATION_MODEL_DIR`, and `HF_TOKEN` (only if the repos are
+   private) on the backend; `VITE_API_BASE_URL` on the frontend (set once
+   the backend's URL is known); `CORS_ALLOW_ORIGINS` on the backend as a
+   JSON list once the frontend's URL is known, e.g.
    `["https://legalintel-frontend.onrender.com"]`.
 5. Bootstrap the first attorney account against the deployed backend —
    Render's dashboard has a "Shell" tab for the web service:

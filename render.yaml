@@ -5,7 +5,9 @@
 #
 # Before using this:
 #   1. Push your two trained model checkpoints to your own Hugging Face Hub
-#      repos - see scripts/upload_models_to_hub.py.
+#      repos - see scripts/upload_models_to_hub.py. If those repos are
+#      private (the default is public; use --private to make them private),
+#      the backend needs HF_TOKEN below to access them.
 #   2. In the Render dashboard, go to "New" -> "Blueprint", point it at this
 #      repo. Render will read this file and let you review both services
 #      before creating them.
@@ -41,6 +43,8 @@ services:
         sync: false # e.g. yourname/clause-extraction-baseline (see scripts/upload_models_to_hub.py)
       - key: DOCUMENT_CLASSIFICATION_MODEL_DIR
         sync: false # e.g. yourname/document-classification-baseline
+      - key: HF_TOKEN
+        sync: false # only needed if the two repos above are private - a "read" token is enough
       - key: CORS_ALLOW_ORIGINS
         sync: false # JSON list, e.g. ["https://legalintel-frontend.onrender.com"] - set after the frontend service exists
 

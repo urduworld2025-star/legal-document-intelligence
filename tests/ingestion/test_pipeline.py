@@ -7,10 +7,10 @@ from tests.conftest import SAMPLE_DOCX_TEXT, SAMPLE_PDF_TEXT
 
 
 def test_parse_document_dispatches_pdf(sample_pdf_path: Path) -> None:
-    doc = parse_document(sample_pdf_path, matter_id="matter-123")
+    doc = parse_document(sample_pdf_path, matter_id=123)
 
     assert doc.file_type == "pdf"
-    assert doc.matter_id == "matter-123"
+    assert doc.matter_id == 123
     assert SAMPLE_PDF_TEXT in doc.full_text
 
 

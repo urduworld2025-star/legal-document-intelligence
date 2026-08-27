@@ -10,7 +10,7 @@ _PARSERS = {
 }
 
 
-def parse_document(path: Path, matter_id: str | None = None) -> ParsedDocument:
+def parse_document(path: Path, matter_id: int | None = None) -> ParsedDocument:
     suffix = path.suffix.lower()
     if suffix not in _PARSERS:
         raise ValueError(f"Unsupported file type: {suffix or '(none)'}")

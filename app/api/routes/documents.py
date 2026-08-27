@@ -2,17 +2,44 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from app.core.config import settings
+from app.core.security import require_role
+from legalintel.classification.document_classifier import (
+    ModelNotFoundError as ClassificationModelNotFoundError,
+)
+from legalintel.classification.document_classifier import classify_document
 from legalintel.extraction.clause_extractor import ModelNotFoundError, extract_clauses
 from legalintel.ingestion.pipeline import parse_document
-from legalintel.models.document import ClauseExtractionResult, ParsedDocument
+from legalintel.matters import db as matters_db
+from legalintel.models.document import ClauseExtractionResult, DocumentClassificationResult, ParsedDocument
+from legalintel.models.matter import AnalysisType
+from legalintel.risk.flagging import apply_risk_flags, summarize_risk
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-async def _parse_uploaded_file(file: UploadFile, matter_id: str | None) -> ParsedDocument:
+def _require_matter(matter_id: int | None) -> None:
+    if matter_id is not None and matters_db.get_matter(settings.db_path, matter_id) is None:
+        raise HTTPException(status_code=404, detail=f"No matter with id {matter_id}")
+
+
+def _persist_if_matter(
+    matter_id: int | None, source_filename: str, analysis_type: AnalysisType, result: BaseModel
+) -> None:
+    if matter_id is not None:
+        matters_db.add_matter_document(
+            settings.db_path,
+            matter_id=matter_id,
+            source_filename=source_filename,
+            analysis_type=analysis_type,
+            result=result.model_dump(mode="json"),
+        )
+
+
+async def _parse_uploaded_file(file: UploadFile, matter_id: int | None) -> ParsedDocument:
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in settings.allowed_extensions:
         raise HTTPException(
@@ -39,19 +66,27 @@ async def _parse_uploaded_file(file: UploadFile, matter_id: str | None) -> Parse
             os.unlink(tmp_path)
 
 
-@router.post("/parse", response_model=ParsedDocument)
+@router.post("/parse", response_model=ParsedDocument, dependencies=[Depends(require_role("attorney", "paralegal"))])
 async def parse_uploaded_document(
     file: UploadFile,
-    matter_id: str | None = Form(default=None),
+    matter_id: int | None = Form(default=None),
 ) -> ParsedDocument:
-    return await _parse_uploaded_file(file, matter_id)
+    _require_matter(matter_id)
+    parsed = await _parse_uploaded_file(file, matter_id)
+    _persist_if_matter(matter_id, parsed.source_filename, "parse", parsed)
+    return parsed
 
 
-@router.post("/extract-clauses", response_model=ClauseExtractionResult)
+@router.post(
+    "/extract-clauses",
+    response_model=ClauseExtractionResult,
+    dependencies=[Depends(require_role("attorney", "paralegal"))],
+)
 async def extract_clauses_from_upload(
     file: UploadFile,
-    matter_id: str | None = Form(default=None),
+    matter_id: int | None = Form(default=None),
 ) -> ClauseExtractionResult:
+    _require_matter(matter_id)
     parsed = await _parse_uploaded_file(file, matter_id)
 
     try:
@@ -59,4 +94,30 @@ async def extract_clauses_from_upload(
     except ModelNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return ClauseExtractionResult(document=parsed, clauses=clauses)
+    clauses = apply_risk_flags(clauses)
+    risk_summary = summarize_risk(clauses)
+    result = ClauseExtractionResult(document=parsed, clauses=clauses, risk_summary=risk_summary)
+    _persist_if_matter(matter_id, parsed.source_filename, "extract_clauses", result)
+    return result
+
+
+@router.post(
+    "/classify",
+    response_model=DocumentClassificationResult,
+    dependencies=[Depends(require_role("attorney", "paralegal"))],
+)
+async def classify_uploaded_document(
+    file: UploadFile,
+    matter_id: int | None = Form(default=None),
+) -> DocumentClassificationResult:
+    _require_matter(matter_id)
+    parsed = await _parse_uploaded_file(file, matter_id)
+
+    try:
+        classification = classify_document(parsed.full_text, model_dir=settings.document_classification_model_dir)
+    except ClassificationModelNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    result = DocumentClassificationResult(document=parsed, classification=classification)
+    _persist_if_matter(matter_id, parsed.source_filename, "classify", result)
+    return result

@@ -6,3 +6,7 @@ pydantic
 pydantic-settings
 python-multipart
 transformers
+httpx
+reportlab
+bcrypt
+PyJWT

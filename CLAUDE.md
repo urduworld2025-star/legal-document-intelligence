@@ -200,6 +200,9 @@ importable core library the API calls into. `pyproject.toml` puts both
   event has somewhere to fire from), `GET /auth/me`, `POST /auth/users`
   (attorney-only, 201, 409 on duplicate email), `GET /auth/audit-log`
   (attorney-only).
+- `app/api/routes/search.py` — `GET /search?q=...` (any authenticated user).
+  Thin: fetches all matters/documents/dockets and hands them to
+  `legalintel.search.search_all`; no query-specific DB filtering.
 - `app/core/security.py` — `get_current_user` (FastAPI dependency; decodes
   the bearer token, then re-fetches the user from the DB and checks
   `is_active` on *every* request rather than trusting a role embedded in the
@@ -310,7 +313,22 @@ importable core library the API calls into. `pyproject.toml` puts both
   not three normalized tables — nothing yet needs cross-document clause
   querying. `app/api/routes/documents.py`'s three endpoints persist into
   this only when a caller supplies `matter_id`; omitting it keeps today's
-  fully-ephemeral behavior (parse, analyze, discard).
+  fully-ephemeral behavior (parse, analyze, discard). `list_all_matter_documents`
+  (no `matter_id` filter) exists solely for `search.py` below.
+- `src/legalintel/search.py` — `search_all` is a pure function over
+  already-fetched `Matter`/`MatterDocument`/`TrackedDocket` lists (same
+  already-fetched-data convention as `risk/flagging.py` and
+  `reporting/report_generator.py` — `app/api/routes/search.py` does the
+  fetching via `matters_db`/`docket_db`). Plain case-insensitive substring
+  matching (no FTS5, no ranking) against matter name/description, document
+  filename, document content (re-hydrated per `analysis_type` the same way
+  `report_generator.py` does), and tracked-docket case name/docket number —
+  deliberately simple, matching this codebase's "don't add abstractions
+  beyond what's needed" convention; an FTS5 virtual table is a natural
+  upgrade if search performance or relevance ranking ever becomes a real
+  problem, not before. Requires 2+ characters; a document whose
+  `matter_id` no longer resolves to a matter (or a docket with no
+  `matter_id`) is silently skipped rather than erroring.
 - `src/legalintel/reporting/report_generator.py` — `generate_matter_report`
   is a pure function (no DB access, mirroring `risk/flagging.py`'s
   already-fetched-data convention) that takes a composed `MatterDetail` plus
@@ -357,18 +375,28 @@ importable core library the API calls into. `pyproject.toml` puts both
   regression test that `matter_documents`' FK constraint is actually
   enforced (`PRAGMA foreign_keys = ON` in `storage.py`).
 - `frontend/` — a Vite + React + TypeScript app with `react-router-dom`
-  (`frontend/src/types/api.ts`/`docket.ts`/`matter.ts`/`user.ts` mirror the
-  backend pydantic models). Routes: `/login` (`LoginPage`); everything else
-  is wrapped in `<RequireAuth>` (redirects to `/login` if no session) —
-  `/` (`MattersListPage` — create/list, create-form hidden for support
-  staff), `/matters/:matterId` (`MatterDetailPage` — the review interface:
-  upload form scoped to the matter, persisted `MatterDocument`s rendered via
+  (`frontend/src/types/api.ts`/`docket.ts`/`matter.ts`/`user.ts`/`search.ts`
+  mirror the backend pydantic models). Routes: `/` (`LandingPage`, public
+  marketing page — U.S. legal-audience copy, no fabricated stats) and
+  `/login` (`LoginPage`) both wrapped in `<RedirectIfAuthed>` (bounces an
+  already-signed-in visitor to `/dashboard` without blocking first paint for
+  anonymous ones — see `RedirectIfAuthed.tsx`); everything else is wrapped
+  in `<RequireAuth>` (redirects to `/login` if no session) — `/dashboard`
+  (`MattersListPage` — create/list, create-form hidden for support staff),
+  `/matters/:matterId` (`MatterDetailPage` — the review interface: upload
+  form scoped to the matter, persisted `MatterDocument`s rendered via
   `MatterDocumentCard` reusing the same `ClauseList`/`DocumentTextViewer`/
   `DocumentClassificationCard` components as live results, plus tracked
   dockets/alerts, plus an attorney-only delete-matter button), `/quick-analyze`
   (`QuickAnalyzePage` — today's original ephemeral flow, kept but relocated,
   always analyzes with `matterId: null` so nothing persists), `/admin`
-  (`AdminPage` — attorney-only, create-user form + audit-log table).
+  (`AdminPage` — attorney-only, create-user form + audit-log table),
+  `/search` (`SearchResultsPage` — reads `?q=` from the URL rather than
+  component state, so the URL itself is shareable/bookmarkable; results
+  grouped into Matters/Documents/Dockets sections, each linking to the
+  owning matter). The search box lives in `NavBar.tsx` itself (visible on
+  every authenticated page, not just a dedicated search page) and navigates
+  to `/search?q=...` on submit.
   `auth/AuthContext.tsx` holds `{user, loading, login, logout}` (backed by
   `auth/tokenStore.ts`'s plain `localStorage` get/set/clear, not React
   state, so `api/client.ts` can read the token without importing React);

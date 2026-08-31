@@ -8,6 +8,7 @@ import { MattersListPage } from "./pages/MattersListPage";
 import { MatterDetailPage } from "./pages/MatterDetailPage";
 import { QuickAnalyzePage } from "./pages/QuickAnalyzePage";
 import { AdminPage } from "./pages/AdminPage";
+import { SearchResultsPage } from "./pages/SearchResultsPage";
 import styles from "./App.module.css";
 
 export default function App() {
@@ -63,6 +64,14 @@ export default function App() {
           element={
             <RequireAuth>
               <AdminPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/search"
+          element={
+            <RequireAuth>
+              <SearchResultsPage />
             </RequireAuth>
           }
         />

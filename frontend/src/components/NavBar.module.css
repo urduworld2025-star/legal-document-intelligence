@@ -59,6 +59,23 @@
   border-bottom-color: var(--gold);
 }
 
+.searchForm input {
+  width: 220px;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.searchForm input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
 .userArea {
   display: flex;
   align-items: center;

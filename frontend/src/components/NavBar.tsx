@@ -1,9 +1,19 @@
-import { Link, NavLink } from "react-router-dom";
+import { FormEvent, useState } from "react";
+import { Link, NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import styles from "./NavBar.module.css";
 
 export function NavBar() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get("q") ?? "");
+
+  function handleSearchSubmit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = searchInput.trim();
+    if (trimmed) navigate(`/search?q=${encodeURIComponent(trimmed)}`);
+  }
 
   return (
     <nav className={styles.nav}>
@@ -39,6 +49,16 @@ export function NavBar() {
           </>
         )}
       </div>
+      {user && (
+        <form className={styles.searchForm} onSubmit={handleSearchSubmit}>
+          <input
+            type="search"
+            placeholder="Search matters, documents, dockets…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </form>
+      )}
       {user && (
         <div className={styles.userArea}>
           <span className={styles.userInfo}>

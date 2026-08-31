@@ -272,7 +272,8 @@ upload/analyze into it, browse persisted results with reviewer bylines,
 track dockets, download a PDF report, delete the matter if you're an
 attorney), `/quick-analyze` (the original one-off flow — analyze a document
 without saving it anywhere), `/admin` (attorney-only — create users, view
-the audit log).
+the audit log), `/search` (search box lives in the nav bar on every page —
+finds matters, documents by filename/content, and tracked dockets).
 
 ## Run tests
 

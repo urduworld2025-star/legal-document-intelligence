@@ -111,3 +111,9 @@ def list_matter_documents(db_path: str, matter_id: int) -> list[MatterDocument]:
             "SELECT * FROM matter_documents WHERE matter_id = ? ORDER BY id", (matter_id,)
         ).fetchall()
     return [_row_to_matter_document(row) for row in rows]
+
+
+def list_all_matter_documents(db_path: str) -> list[MatterDocument]:
+    with _connect(db_path) as conn:
+        rows = conn.execute("SELECT * FROM matter_documents ORDER BY id").fetchall()
+    return [_row_to_matter_document(row) for row in rows]

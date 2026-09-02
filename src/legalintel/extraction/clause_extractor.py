@@ -1,11 +1,23 @@
+from __future__ import annotations
+
 import re
 from functools import lru_cache
 from pathlib import Path
-
-import torch
-from transformers import AutoModelForQuestionAnswering, AutoTokenizer
+from typing import TYPE_CHECKING
 
 from legalintel.models.document import ClauseMatch
+
+if TYPE_CHECKING:
+    import torch
+
+# torch/transformers are deliberately NOT imported at module level - `from __future__ import
+# annotations` (PEP 563) makes the `torch.Tensor` type hints below strings that are never
+# evaluated, so this module can be imported (e.g. transitively via app.main at process
+# startup) without paying torch's slow import cost. Each function that actually needs torch
+# imports it locally (cheap after the first real import - Python caches it in sys.modules).
+# This matters a lot on hosts with a slow cold start (hit during cPanel deployment, where
+# eagerly importing torch at every process start pushed past the web server's connection
+# timeout before the process could even serve a plain /health check).
 
 # Must match the values used in notebooks/02_baseline_clause_extraction_colab.ipynb
 # so inference windowing matches how the model was trained.
@@ -114,6 +126,8 @@ def _load_model(model_dir: str):
     # production, where the 250MB+ checkpoint can't be committed to git) - any failure there
     # is wrapped in the same ModelNotFoundError so callers don't need to know which case
     # applies.
+    from transformers import AutoModelForQuestionAnswering, AutoTokenizer
+
     if not Path(model_dir).exists():
         if not _looks_like_hub_repo_id(model_dir):
             raise ModelNotFoundError(
@@ -140,8 +154,10 @@ def _load_model(model_dir: str):
     return tokenizer, model
 
 
-def _best_span_in_window(start_logits: torch.Tensor, end_logits: torch.Tensor, ctx_start: int, ctx_end: int):
+def _best_span_in_window(start_logits: "torch.Tensor", end_logits: "torch.Tensor", ctx_start: int, ctx_end: int):
     """Find the highest-scoring valid (start, end) span within [ctx_start, ctx_end], vectorized."""
+    import torch
+
     start_ctx = start_logits[ctx_start : ctx_end + 1]
     end_ctx = end_logits[ctx_start : ctx_end + 1]
     length = start_ctx.shape[0]
@@ -168,6 +184,8 @@ def _score_span(question: str, context: str, tokenizer, model) -> tuple[float, i
     null-vs-span threshold - that decision is the caller's (`_predict_answer`), kept
     separate so a threshold can be swept post-hoc without re-running inference (see
     `scripts/eval_models.py --calibrate`)."""
+    import torch
+
     inputs = tokenizer(
         question,
         context,

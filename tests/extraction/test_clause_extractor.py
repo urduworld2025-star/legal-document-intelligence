@@ -36,10 +36,14 @@ def test_missing_model_dir_with_windows_path_fails_fast_without_network(
     def _fail_if_called(*args, **kwargs):
         raise AssertionError("from_pretrained should not be called for a local-looking path")
 
-    import legalintel.extraction.clause_extractor as ce
+    # clause_extractor imports transformers locally (inside _load_model), not at module
+    # level - see the module docstring note on why - so patch the source classes directly;
+    # the local `from transformers import ...` inside _load_model resolves to the same
+    # (now-patched) class objects.
+    import transformers
 
-    monkeypatch.setattr(ce.AutoTokenizer, "from_pretrained", _fail_if_called)
-    monkeypatch.setattr(ce.AutoModelForQuestionAnswering, "from_pretrained", _fail_if_called)
+    monkeypatch.setattr(transformers.AutoTokenizer, "from_pretrained", _fail_if_called)
+    monkeypatch.setattr(transformers.AutoModelForQuestionAnswering, "from_pretrained", _fail_if_called)
 
     with pytest.raises(ModelNotFoundError):
         extract_clauses(SHORT_CONTEXT, model_dir=str(tmp_path / "does-not-exist"))

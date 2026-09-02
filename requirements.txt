@@ -5,6 +5,7 @@ python-docx
 pydantic
 pydantic-settings
 python-multipart
+numpy==2.2.6
 transformers
 httpx
 reportlab

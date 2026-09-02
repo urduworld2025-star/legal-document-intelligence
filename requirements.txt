@@ -5,7 +5,14 @@ python-docx
 pydantic
 pydantic-settings
 python-multipart
-numpy==2.2.6
+# Pinned to the last 1.x release, deliberately below numpy 2.x's rewritten SIMD-dispatch
+# subsystem - that subsystem crashes ("CPU dispatcher tracer already initlized" + segfault)
+# on some sandboxed/virtualized hosting (hit on CloudLinux/CageFS-style shared cPanel
+# hosting during deployment). 1.26.4 has no published wheel for Python 3.13, so on a local
+# machine running 3.13 (not this project's deployment target) `pip install -r
+# requirements.txt` will fail on this line specifically - use Python 3.10-3.12 locally, or
+# keep whatever numpy 2.x already installed there; it works fine on non-sandboxed hosts.
+numpy==1.26.4
 transformers
 httpx
 reportlab
